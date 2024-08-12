@@ -190,13 +190,14 @@ void MainThread::search() {
 
   Eval::NNUE::verify();
 
-  if (rootMoves.empty() || (CurrentProtocol == XBOARD && rootPos.is_optional_game_end()))
+  if (rootMoves.empty() || (CurrentProtocol == XBOARD && rootPos.is_optional_game_end()) || rootPos.all_moves_peril())
   {
       rootMoves.emplace_back(MOVE_NONE);
       Value variantResult;
       Value result =  rootPos.is_game_end(variantResult) ? variantResult
-                    : rootPos.checkers()                 ? rootPos.checkmate_value()
-                                                         : rootPos.stalemate_value();
+                    : rootPos.checkers() ? rootPos.checkmate_value()
+                    : (rootPos.lose_when_kings_gone() && rootPos.count_with_hand(us, KING) <= 0) ? rootPos.checkmate_value()
+                    : rootPos.stalemate_value();
       if (CurrentProtocol == XBOARD)
       {
           // rotate MOVE_NONE to front (for optional game end)
@@ -659,7 +660,20 @@ namespace {
 
     // Check if we have an upcoming move which draws by repetition, or
     // if the opponent had an alternative move earlier to this position.
-    if (   !rootNode
+    if(pos.material_counting() == CHESS_SHARP 
+        && !rootNode) {
+        if(pos.rule50_count() >= 3
+        && pos.has_game_cycle(ss->ply)) 
+        {
+            Value impasseValue = pos.material_counting_result(ss->ply);
+            if(alpha < impasseValue)
+                alpha = impasseValue;
+            if (alpha >= beta)
+                return alpha;
+
+        }
+    }
+    else if (   !rootNode
         && pos.rule50_count() >= 3
         && alpha < VALUE_DRAW
         && pos.has_game_cycle(ss->ply))
@@ -1272,7 +1286,7 @@ moves_loop: // When in check, search starts from here
                                                                 [to_sq(move)];
 
       // Step 15. Make the move
-      pos.do_move(move, st, givesCheck);
+            pos.do_move(move, st, givesCheck);
 
       // Step 16. Late moves reduction / extension (LMR, ~200 Elo)
       // We use various heuristics for the sons of a node after the first son has
@@ -1466,12 +1480,26 @@ moves_loop: // When in check, search starts from here
     // must be a mate or a stalemate. If we are in a singular extension search then
     // return a fail low score.
 
-    assert(moveCount || !ss->inCheck || excludedMove || !MoveList<LEGAL>(pos).size());
+// TODO: remove
+// if((moveCount || !ss->inCheck || excludedMove || !MoveList<LEGAL>(pos).size()) == false) {
+// std::cout << pos << std::endl;
+// std::cout << "Move count: " << moveCount << std::endl;
+// string inCheckString = !ss->inCheck ? "true" : "false";
+// std::cout << "!In check: " << inCheckString << std::endl;
+// string excludedMoveString = excludedMove ? "true" : "false";
+// std::cout << "Excluded move: " << excludedMoveString << std::endl;
+// string moveListString = !MoveList<LEGAL>(pos).size() ? "true" : "false";
+// std::cout << "Move list (T/F): " << moveListString << std::endl;
+// std::cout << "Move list size: " << MoveList<LEGAL>(pos).size() << std::endl;
+// }
+    assert(moveCount || !ss->inCheck || excludedMove || !MoveList<LEGAL>(pos).size() || pos.can_move_into_check());
 
-    if (!moveCount)
+
+    if (!moveCount || pos.all_moves_peril())
         bestValue = excludedMove ? alpha :
-                    ss->inCheck  ? pos.checkmate_value(ss->ply)
-                                 : pos.stalemate_value(ss->ply);
+                    ss->inCheck || (pos.lose_when_kings_gone() && !pos.count_with_hand(us, KING))  ? 
+                    pos.checkmate_value(ss->ply):
+                    pos.stalemate_value(ss->ply);
 
     // If there is a move which produces search value greater than alpha we update stats of searched moves
     else if (bestMove)
@@ -1545,8 +1573,15 @@ moves_loop: // When in check, search starts from here
     moveCount = 0;
 
     Value gameResult;
-    if (pos.is_game_end(gameResult, ss->ply))
-        return gameResult;
+    if (pos.is_game_end(gameResult, ss->ply)) {
+// TODO: remove
+// std::cout << pos << std::endl;
+// string is_game_end = pos.is_game_end(gameResult, ss->ply) ? "true" : "false";
+// std::cout << "Game is_game_end: " << is_game_end << std::endl;
+// std::cout << "Game result: " << gameResult << std::endl;
+// int dbfoo = 1;
+            return gameResult;
+    }
 
     // Check for maximum ply reached
     if (ss->ply >= MAX_PLY)
@@ -1728,7 +1763,12 @@ moves_loop: // When in check, search starts from here
     // and no legal moves were found, it is checkmate.
     if (ss->inCheck && bestValue == -VALUE_INFINITE)
     {
-        assert(!MoveList<LEGAL>(pos).size());
+// TODO: remove
+// if((!MoveList<LEGAL>(pos).size()) == false) {
+// std::cout << pos << std::endl;
+// std::cout << MoveList<LEGAL>(pos).size() << std::endl;
+// }
+        assert(!MoveList<LEGAL>(pos).size() || pos.can_move_into_check());
 
         return pos.checkmate_value(ss->ply); // Plies to mate from the root
     }

@@ -119,6 +119,10 @@ struct Variant {
   Rank soldierPromotionRank = RANK_1;
   EnclosingRule flipEnclosedPieces = NO_ENCLOSING;
   bool freeDrops = false;
+  bool kingOnBoardToMove = false;
+  bool queenMustBeDroppedLast = false;
+  bool canMoveIntoCheck = false;
+  bool loseWhenKingsGone = false;
 
   // game end
   PieceSet nMoveRuleTypes[COLOR_NB] = {piece_set(PAWN), piece_set(PAWN)};

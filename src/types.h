@@ -290,7 +290,7 @@ enum CheckCount : int {
 };
 
 enum MaterialCounting {
-  NO_MATERIAL_COUNTING, JANGGI_MATERIAL, UNWEIGHTED_MATERIAL, WHITE_DRAW_ODDS, BLACK_DRAW_ODDS
+  NO_MATERIAL_COUNTING, JANGGI_MATERIAL, UNWEIGHTED_MATERIAL, WHITE_DRAW_ODDS, BLACK_DRAW_ODDS, CHESS_SHARP
 };
 
 enum CountingRule {
@@ -344,10 +344,18 @@ enum Value : int {
   VALUE_INFINITE  = 32001,
   VALUE_NONE      = 32002,
 
-  VALUE_TB_WIN_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,
-  VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY,
-  VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - MAX_PLY,
-  VALUE_MATED_IN_MAX_PLY = -VALUE_MATE_IN_MAX_PLY,
+  VALUE_TB_WIN_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,                                     //  31508
+  VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY,                                      // -31508
+  VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - MAX_PLY,                                           //  31754
+  VALUE_MATED_IN_MAX_PLY = -VALUE_MATE_IN_MAX_PLY,                                          // -31754
+
+  // For Chess♯ tournament scoring system
+  VALUE_SHARP_STALEMATE =  VALUE_TB_WIN_IN_MAX_PLY - 1,                                     //  31507
+  VALUE_SHARP_STALEMATE_IN_MAX_PLY = VALUE_SHARP_STALEMATE - MAX_PLY,                       //  31261
+  VALUE_SHARP_MATERIAL_IMPASSE = VALUE_SHARP_STALEMATE_IN_MAX_PLY - 1,                      //  31260
+  VALUE_SHARP_MATERIAL_IMPASSE_IN_MAX_PLY = VALUE_SHARP_MATERIAL_IMPASSE - MAX_PLY,         //  31014
+  VALUE_SHARP_EQUAL_IMPASSE = VALUE_SHARP_MATERIAL_IMPASSE_IN_MAX_PLY - 1,                  //  31013
+  VALUE_SHARP_EQUAL_IMPASSE_IN_MAX_PLY = VALUE_SHARP_EQUAL_IMPASSE - MAX_PLY,               //  30767
 
   PawnValueMg   = 126,   PawnValueEg   = 208,
   KnightValueMg = 781,   KnightValueEg = 854,
@@ -722,9 +730,35 @@ constexpr Value mated_in(int ply) {
   return -VALUE_MATE + ply;
 }
 
+constexpr Value stalemate_in(int ply) {
+  return VALUE_SHARP_STALEMATE - ply;
+}
+
+constexpr Value stalemated_in(int ply) {
+  return -VALUE_SHARP_STALEMATE + ply;
+}
+
+constexpr Value win_material_impasse_in(int ply) {
+  return VALUE_SHARP_MATERIAL_IMPASSE - ply;
+}
+
+constexpr Value lose_material_impasse_in(int ply) {
+  return -VALUE_SHARP_MATERIAL_IMPASSE + ply;
+}
+
+constexpr Value win_equal_impasse_in(int ply) {
+  return VALUE_SHARP_EQUAL_IMPASSE - ply;
+}
+
+constexpr Value lose_equal_impasse_in(int ply) {
+  return -VALUE_SHARP_EQUAL_IMPASSE + ply;
+}
+
 constexpr Value convert_mate_value(Value v, int ply) {
   return  v ==  VALUE_MATE ? mate_in(ply)
         : v == -VALUE_MATE ? mated_in(ply)
+        : v ==  VALUE_SHARP_STALEMATE ? stalemate_in(ply)
+        : v == -VALUE_SHARP_STALEMATE ? stalemated_in(ply)
         : v;
 }
 

@@ -664,6 +664,8 @@ namespace {
     // Placement/Pre-chess
     // A shuffle variant where the players determine the placing of the back rank pieces
     // https://www.chessvariants.com/link/placement-chess
+    // https://quantumgambitz.com/blog/chess/cga/bronstein-chess-pre-chess-shuffle-chess
+    // https://www.jsbeasley.co.uk/encyc/encyc.pdf (pg 76)
     Variant* placement_variant() {
         Variant* v = chess_variant_base()->init();
         v->variantTemplate = "bughouse";
@@ -678,6 +680,68 @@ namespace {
         v->nnueAlias = "nn-";
         return v;
     }
+    // Chess♯
+    // Similar to Pre-chess, but players can move pieces once their king is on the board
+    // https://chess-sharp.games/
+    Variant* chess_sharp_variant() {
+        Variant* v = chess_variant_base()->init();
+        v->variantTemplate = "bughouse";
+        v->startFen = "8/pppppppp/8/8/8/8/PPPPPPPP/8[KQRRBBNNkqrrbbnn] w - - 0 1";
+        v->pieceDrops = true;
+        v->whiteDropRegion = Rank1BB;
+        v->blackDropRegion = Rank8BB;
+        v->kingOnBoardToMove = true;
+        v->queenMustBeDroppedLast = true;
+        v->canMoveIntoCheck = true;
+        v->loseWhenKingsGone = true;
+        v->castling = false;
+        v->doubleStep = false;
+        v->promotionPieceTypes[WHITE] = piece_set(QUEEN);
+        v->promotionPieceTypes[BLACK] = piece_set(QUEEN);
+        v->stalemateValue = -VALUE_SHARP_STALEMATE;
+        v->materialCounting = CHESS_SHARP;
+        // v->nFoldRule = 50;
+
+        v->nnueAlias = ""; // TODO: does "nn-" work?
+        return v;
+    }
+    // Chess𝄪
+    // Chess♯ but with an extra queen for each
+    Variant* chess_double_sharp_variant() {
+        Variant* v = chess_sharp_variant()->init();
+        v->startFen = "8/pppppppp/8/8/8/8/PPPPPPPP/8[KQQRRBBNNkqqrrbbnn] w - - 0 1";
+        return v;
+    }
+    // Chess♭
+    // Chess♯ but without knights
+    Variant* chess_flat_variant() {
+        Variant* v = chess_sharp_variant()->init();
+        v->startFen = "8/pppppppp/8/8/8/8/PPPPPPPP/8[BBRRKQbbrrkq] w - - 0 1";
+        return v;
+    }
+    // Chess𝄫
+    // Chess♯ but without knights, bishops, and rooks
+    Variant* chess_double_flat_variant() {
+        Variant* v = chess_sharp_variant()->init();
+        v->startFen = "8/pppppppp/8/8/8/8/PPPPPPPP/8[KQkq] w - - 0 1";
+        return v;
+    }
+    // Chess𝄫♭
+    // Chess♯ but only kings in the pocket
+    Variant* chess_triple_flat_variant() {
+        Variant* v = chess_sharp_variant()->init();
+        v->startFen = "8/pppppppp/8/8/8/8/PPPPPPPP/8[Kk] w - - 0 1";
+        return v;
+    }
+    // Classical Chess♯
+    // Normal chess, but uses the Chess♯ tournament scoring system (no draws)
+    Variant* classical_chess_sharp_variant() {
+        Variant* v = chess_variant()->init();
+        v->stalemateValue = -VALUE_SHARP_STALEMATE;
+        v->materialCounting = CHESS_SHARP;
+        return v;
+    }
+
     // Sittuyin (Burmese chess)
     // Regional chess variant from Myanmar, similar to Makruk but with a setup phase.
     // https://en.wikipedia.org/wiki/Sittuyin
@@ -1847,6 +1911,13 @@ void VariantMap::init() {
     add("koedem", koedem_variant());
     add("pocketknight", pocketknight_variant());
     add("placement", placement_variant());
+    add("pre-chess", placement_variant());
+    add("chess-sharp", chess_sharp_variant());
+    add("chess-flat", chess_flat_variant());
+    add("chess-double-sharp", chess_double_sharp_variant());
+    add("chess-double-flat", chess_double_flat_variant());
+    add("chess-triple-flat", chess_triple_flat_variant());
+    add("classical-chess-sharp", classical_chess_sharp_variant());
     add("sittuyin", sittuyin_variant());
     add("seirawan", seirawan_variant());
     add("shouse", shouse_variant());

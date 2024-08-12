@@ -187,6 +187,10 @@ public:
   Bitboard promoted_soldiers(Color c) const;
   bool makpong() const;
   EnclosingRule flip_enclosed_pieces() const;
+  bool king_on_board_to_move() const;
+  bool queen_must_be_dropped_last() const;
+  bool can_move_into_check() const;
+  bool lose_when_kings_gone() const;
   // winning conditions
   int n_move_rule() const;
   int n_fold_rule() const;
@@ -258,6 +262,7 @@ public:
   Bitboard check_squares(PieceType pt) const;
   Bitboard pinners(Color c) const;
   Bitboard checked_pseudo_royals(Color c) const;
+  bool all_moves_peril() const;
 
   // Attacks to/from a given square
   Bitboard attackers_to(Square s) const;
@@ -313,7 +318,7 @@ public:
   bool is_optional_game_end() const;
   bool is_optional_game_end(Value& result, int ply = 0, int countStarted = 0) const;
   bool is_game_end(Value& result, int ply = 0) const;
-  Value material_counting_result() const;
+  Value material_counting_result(int ply = 0) const;
   bool is_draw(int ply) const;
   bool has_game_cycle(int ply) const;
   bool has_repeated() const;
@@ -849,6 +854,26 @@ inline EnclosingRule Position::flip_enclosed_pieces() const {
   return var->flipEnclosedPieces;
 }
 
+inline bool Position::king_on_board_to_move() const {
+  assert(var != nullptr);
+  return var->kingOnBoardToMove;
+}
+
+inline bool Position::queen_must_be_dropped_last() const {
+  assert(var != nullptr);
+  return var->queenMustBeDroppedLast;
+}
+
+inline bool Position::can_move_into_check() const {
+  assert(var != nullptr);
+  return var->canMoveIntoCheck;
+}
+
+inline bool Position::lose_when_kings_gone() const {
+  assert(var != nullptr);
+  return var->loseWhenKingsGone;
+}
+
 inline Value Position::stalemate_value(int ply) const {
   assert(var != nullptr);
   if (var->stalematePieceCount)
@@ -1293,19 +1318,19 @@ inline Bitboard Position::attackers_to(Square s, Bitboard occupied, Color c) con
 }
 
 inline Bitboard Position::checkers() const {
-  return st->checkersBB;
+    return st->checkersBB;
 }
 
 inline Bitboard Position::blockers_for_king(Color c) const {
-  return st->blockersForKing[c];
+    return st->blockersForKing[c];
 }
 
 inline Bitboard Position::pinners(Color c) const {
-  return st->pinners[c];
+    return st->pinners[c];
 }
 
 inline Bitboard Position::check_squares(PieceType pt) const {
-  return st->checkSquares[pt];
+    return st->checkSquares[pt];
 }
 
 inline bool Position::pawn_passed(Color c, Square s) const {
@@ -1494,7 +1519,7 @@ inline bool Position::allow_virtual_drop(Color c, PieceType pt) const {
                         && count_in_hand(c, QUEEN) >= 0);
 }
 
-inline Value Position::material_counting_result() const {
+inline Value Position::material_counting_result(int ply) const {
   auto weight_count = [this](PieceType pt, int v){ return v * (count(WHITE, pt) - count(BLACK, pt)); };
   int materialCount;
   Value result;
@@ -1509,6 +1534,26 @@ inline Value Position::material_counting_result() const {
                      + weight_count(SOLDIER, 2)
                      - 1;
       result = materialCount > 0 ? VALUE_MATE : -VALUE_MATE;
+      break;
+  case CHESS_SHARP:
+      materialCount =  weight_count(QUEEN, 9)
+                     + weight_count(ROOK, 5)
+                     + weight_count(BISHOP, 3)
+                     + weight_count(KNIGHT, 3)
+                     + weight_count(PAWN, 1);
+// TODO: remove
+// std::cout << *this << std::endl;
+// std::cout << "materialCount: " << materialCount << std::endl;
+// std::cout << "side_to_move(): " << (side_to_move() == WHITE ? "WHITE" : "BLACK") << std::endl;
+      if((materialCount > 0 && side_to_move() == WHITE) || (materialCount < 0 && side_to_move() == BLACK))
+          result = win_material_impasse_in(ply);
+      else if((materialCount > 0 && side_to_move() == BLACK) || (materialCount < 0 && side_to_move() == WHITE))
+          result = lose_material_impasse_in(ply);
+      else if(side_to_move() == BLACK)
+          result = win_equal_impasse_in(ply);
+      else
+          result = lose_equal_impasse_in(ply);
+      return result;
       break;
   case UNWEIGHTED_MATERIAL:
       result =  count(WHITE, ALL_PIECES) > count(BLACK, ALL_PIECES) ?  VALUE_MATE
@@ -1558,7 +1603,7 @@ inline void Position::undrop_piece(Piece pc_hand, Square s) {
 }
 
 inline bool Position::can_drop(Color c, PieceType pt) const {
-  return variant()->freeDrops || count_in_hand(c, pt) > 0;
+    return variant()->freeDrops || count_in_hand(c, pt) > 0;
 }
 
 } // namespace Stockfish

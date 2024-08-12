@@ -136,6 +136,8 @@ namespace {
 
     if (!pos.pieces(Us, PAWN))
         return moveList;
+    if(pos.king_on_board_to_move() && !pos.count<KING>(Us))
+        return moveList;
 
     constexpr Color     Them     = ~Us;
     constexpr Direction Up       = pawn_push(Us);
@@ -290,6 +292,8 @@ namespace {
   ExtMove* generate_moves(const Position& pos, ExtMove* moveList, PieceType Pt, Bitboard target) {
 
     assert(Pt != KING && Pt != PAWN);
+    if(pos.king_on_board_to_move() && !pos.count<KING>(Us))
+        return moveList;
 
     Bitboard bb = pos.pieces(Us, Pt);
 
@@ -470,6 +474,21 @@ namespace {
                     moveList = make_move_and_gating<CASTLING>(pos, moveList, Us,ksq, pos.castling_rook_square(cr));
     }
 
+    // Check for a winning king-take
+    if(pos.lose_when_kings_gone() && pos.can_move_into_check() && pos.count<KING>(~Us) > 0) {
+        Square targetKing = pos.square<KING>(~Us);
+        Bitboard checkersOnThemBB = pos.attackers_to(targetKing, Us);
+
+// TODO: remove
+// if(checkersOnThemBB) {
+// std::cout << pos << std::endl;
+// std::cout << "targetKing: " << UCI::square(pos, targetKing) << std::endl;
+// std::cout << std::endl << "checkersOnThemBB" << std::endl << Bitboards::pretty(checkersOnThemBB);
+        while (checkersOnThemBB) {
+            moveList = make_move_and_gating<NORMAL>(pos, moveList, Us, pop_lsb(checkersOnThemBB), targetKing);
+        }
+    }
+
     return moveList;
   }
 
@@ -488,7 +507,7 @@ template<GenType Type>
 ExtMove* generate(const Position& pos, ExtMove* moveList) {
 
   static_assert(Type != LEGAL, "Unsupported type in generate()");
-  assert((Type == EVASIONS) == (bool)pos.checkers());
+  assert(pos.can_move_into_check() || (Type == EVASIONS) == (bool)pos.checkers());
 
   Color us = pos.side_to_move();
 
@@ -514,8 +533,10 @@ ExtMove* generate<LEGAL>(const Position& pos, ExtMove* moveList) {
 
   ExtMove* cur = moveList;
 
-  moveList = pos.checkers() ? generate<EVASIONS    >(pos, moveList)
-                            : generate<NON_EVASIONS>(pos, moveList);
+  moveList = pos.checkers() && !pos.can_move_into_check() ? 
+      generate<EVASIONS    >(pos, moveList):
+      generate<NON_EVASIONS>(pos, moveList);
+
   while (cur != moveList)
       if (!pos.legal(*cur) || pos.virtual_drop(*cur))
           *cur = (--moveList)->move;

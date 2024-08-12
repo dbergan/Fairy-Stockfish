@@ -591,6 +591,49 @@ void Position::set_check_info(StateInfo* si) const {
   }
 }
 
+/// Position::all_moves_peril() is a test for stalemate when moving into check is legal
+bool Position::all_moves_peril() const {
+// TODO: remove
+// std::cout << *this << std::endl;
+// std::cout << "can_move_into_check(): " << (can_move_into_check() ? "true" : "false") << std::endl;
+// std::cout << std::endl << "checkers()" << std::endl << Bitboards::pretty(checkers());
+// printf("count(sideToMove, KING): %d\n\n", count(sideToMove, KING));
+    if (!can_move_into_check() || checkers() || !count(sideToMove, KING)) return false;
+    for (auto& m : MoveList<LEGAL>(*this)) {
+// TODO: remove
+// std::cout << *this << std::endl;
+// std::cout << "square<KING>(sideToMove): " << UCI::square(*this, square<KING>(sideToMove)) << std::endl;
+// std::cout << "to_sq(m): " << UCI::square(*this, to_sq(m)) << std::endl;
+// std::cout << "from_sq(m): " << UCI::square(*this, from_sq(m)) << std::endl;
+// std::cout << std::endl << "attackers_to(to_sq(m), ~sideToMove))" << std::endl << Bitboards::pretty(attackers_to(to_sq(m), ~sideToMove));
+        if(type_of(m) == DROP) return false;
+        else if(square<KING>(sideToMove) == from_sq(m)) {
+            if(!attackers_to(to_sq(m), ~sideToMove))
+                return false;
+        }
+        else {
+            Bitboard occupied = (pieces() ^ from_sq(m)) | to_sq(m);
+// TODO: remove
+// std::cout << std::endl << "pieces()" << std::endl << Bitboards::pretty(pieces());
+// std::cout << "from_sq(m): " << UCI::square(*this, from_sq(m)) << std::endl;
+// std::cout << "to_sq(m): " << UCI::square(*this, to_sq(m)) << std::endl;
+// std::cout << std::endl << "pieces() ^ from_sq(m)" << std::endl << Bitboards::pretty(pieces() ^ from_sq(m));
+// std::cout << std::endl << "(pieces() ^ from_sq(m)) | to_sq(m)" << std::endl << Bitboards::pretty((pieces() ^ from_sq(m)) | to_sq(m));
+// std::cout << std::endl << "occupied" << std::endl << Bitboards::pretty(occupied);
+// std::cout << std::endl << "attackers_to(square<KING>(sideToMove), occupied, ~sideToMove)" << std::endl << Bitboards::pretty(attackers_to(square<KING>(sideToMove), occupied, ~sideToMove));
+
+            if(!attackers_to(square<KING>(sideToMove), occupied, ~sideToMove))
+                return false;
+        }
+    }
+// TODO: remove
+// std::cout << *this << std::endl;
+// std::cout << "can_move_into_check(): " << (can_move_into_check() ? "true" : "false") << std::endl;
+// std::cout << std::endl << "checkers()" << std::endl << Bitboards::pretty(checkers());
+// printf("count(sideToMove, KING): %d\n\n", count(sideToMove, KING));
+
+    return true;
+}
 
 /// Position::set_state() computes the hash keys of the position, and other
 /// data that once computed is updated incrementally as moves are made.
@@ -828,7 +871,7 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
 /// or the same of the color of the slider.
 
 Bitboard Position::slider_blockers(Bitboard sliders, Square s, Bitboard& pinners, Color c) const {
-
+  
   Bitboard blockers = 0;
   pinners = 0;
 
@@ -992,7 +1035,7 @@ Bitboard Position::attackers_to(Square s, Bitboard occupied) const {
 /// Position::checked_pseudo_royals computes a bitboard of
 /// all pseudo-royal pieces of a particular color that are in check
 Bitboard Position::checked_pseudo_royals(Color c) const {
-  assert(extinction_pseudo_royal());
+    assert(extinction_pseudo_royal());
   Bitboard checked = 0;
   Bitboard pseudoRoyals = st->pseudoRoyals & pieces(c);
   Bitboard pseudoRoyalsTheirs = st->pseudoRoyals & pieces(~c);
@@ -1033,7 +1076,10 @@ bool Position::legal(Move m) const {
   assert(type_of(m) != DROP || piece_drops());
 
   Color us = sideToMove;
+  if(lose_when_kings_gone() && count_with_hand(us, KING) <= 0) return false;
+  if(queen_must_be_dropped_last() && type_of(m) == DROP && in_hand_piece_type(m) == QUEEN && (count_in_hand(us, ALL_PIECES) - count_in_hand(us, QUEEN) > 0)) return false;
   Square from = from_sq(m);
+  if(king_on_board_to_move() && count<KING>(us) <= 0 && from != SQ_NONE) return false;
   Square to = to_sq(m);
 
   assert(color_of(moved_piece(m)) == us);
@@ -1254,7 +1300,7 @@ bool Position::legal(Move m) const {
 
   // If the moving piece is a king, check whether the destination square is
   // attacked by the opponent.
-  if (type_of(moved_piece(m)) == KING)
+  if (type_of(moved_piece(m)) == KING && !can_move_into_check())
       return !attackers_to(to, occupied, ~us);
 
   // Return early when without king
@@ -1268,7 +1314,10 @@ bool Position::legal(Move m) const {
       janggiCannons ^= to;
 
   // A non-king move is legal if the king is not under attack after the move.
-  return !(attackers_to(square<KING>(us), occupied, ~us, janggiCannons) & ~SquareBB[to]);
+  if(can_move_into_check())
+    return true;
+  else
+    return !(attackers_to(square<KING>(us), occupied, ~us, janggiCannons) & ~SquareBB[to]);
 }
 
 
@@ -1403,7 +1452,7 @@ bool Position::pseudo_legal(const Move m) const {
 /// Position::gives_check() tests whether a pseudo-legal move gives a check
 
 bool Position::gives_check(Move m) const {
-
+  
   assert(is_ok(m));
   assert(color_of(moved_piece(m)) == sideToMove);
 
@@ -1412,6 +1461,9 @@ bool Position::gives_check(Move m) const {
 
   // No check possible without king
   if (!count<KING>(~sideToMove))
+      return false;
+  // If king is captured with this move, do not give check
+  if (to_sq(m) == square<KING>(~sideToMove))
       return false;
 
   Bitboard occupied = (type_of(m) != DROP ? pieces() ^ from : pieces()) | to;
@@ -1567,7 +1619,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   assert(color_of(pc) == us);
   assert(captured == NO_PIECE || color_of(captured) == (type_of(m) != CASTLING ? them : us));
-  assert(type_of(captured) != KING);
+  assert(can_move_into_check() || type_of(captured) != KING);
 
   if (check_counting() && givesCheck)
       k ^= Zobrist::checks[us][st->checksRemaining[us]] ^ Zobrist::checks[us][--(st->checksRemaining[us])];
@@ -2065,7 +2117,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   // Update the key with the final value
   st->key = k;
-  // Calculate checkers bitboard (if move gives check)
+  // Calculate checkers bitboard (if move gives check)  
   st->checkersBB = givesCheck ? attackers_to(square<KING>(them), us) & pieces(us) : Bitboard(0);
   assert(givesCheck == bool(st->checkersBB));
 
@@ -2129,7 +2181,7 @@ void Position::undo_move(Move m) {
   assert(type_of(m) == DROP || empty(from) || type_of(m) == CASTLING || is_gating(m)
          || (type_of(m) == PROMOTION && sittuyin_promotion())
          || (is_pass(m) && pass(us)));
-  assert(type_of(st->capturedPiece) != KING);
+  assert(can_move_into_check() || type_of(st->capturedPiece) != KING);
 
   // Reset wall squares
   byTypeBB[ALL_PIECES] ^= st->wallSquares ^ st->previous->wallSquares;
@@ -2700,6 +2752,15 @@ bool Position::is_optional_game_end(Value& result, int ply, int countStarted) co
       }
   }
 
+  // King-taking (stalemate)
+  if(all_moves_peril()) {
+// TODO: remove
+//std::cout << std::endl << std::endl<< "*****STALEMATE*****" << *this << std::endl;
+      result = stalemate_in(ply);
+      return true;
+  }
+
+
   return false;
 }
 
@@ -2913,6 +2974,22 @@ bool Position::is_immediate_game_end(Value& result, int ply) const {
           result = mate_in(ply);
           return true;
       }
+  }
+
+  // King-taking
+  if(lose_when_kings_gone()) {
+    if(!count_with_hand(~sideToMove, KING)) {
+    // TODO: remove
+    //std::cout << std::endl<< std::endl << "*****KING-TAKE*****" << *this << std::endl;
+        result = mate_in(ply);
+        return true;
+    }
+    else if(!count_with_hand(sideToMove, KING)) {
+    // TODO: remove
+    //std::cout << std::endl<< std::endl << "*****KING-TAKE*****" << *this << std::endl;
+        result = mated_in(ply);
+        return true;
+    }
   }
 
   return false;

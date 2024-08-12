@@ -432,8 +432,75 @@ string UCI::value(Value v) {
   assert(-VALUE_INFINITE < v && v < VALUE_INFINITE);
 
   stringstream ss;
+  if(variants.find(Options["UCI_Variant"])->second->materialCounting == CHESS_SHARP)
+  {
+    stringstream label, value;
+    int ply = 0;
+    if(abs(v) >= VALUE_SHARP_EQUAL_IMPASSE_IN_MAX_PLY) {
+        // Game endings
+        if(abs(v) >= VALUE_MATE_IN_MAX_PLY) {
+            if(v > 0) {
+                ply = VALUE_MATE - v;
+                label << "capture-their-king ";
+            }
+            else {
+                ply = -VALUE_MATE - v;
+                label << "lose-my-king ";
+            }
+        }
+        else if(abs(v) >= VALUE_SHARP_STALEMATE_IN_MAX_PLY) {
+            if(v > 0) {
+                ply = VALUE_SHARP_STALEMATE - v;
+                label << "stalemate-their-king ";
+            }
+            else {
+                ply = -VALUE_SHARP_STALEMATE - v;
+                label << "my-king-gets-stalemated ";
+            }
+        }
+        else if(abs(v) >= VALUE_SHARP_MATERIAL_IMPASSE_IN_MAX_PLY) {
+            if(v > 0) {
+                ply = VALUE_SHARP_MATERIAL_IMPASSE - v;
+                label << "win-material-impasse ";
+            }
+            else {
+                ply = -VALUE_SHARP_MATERIAL_IMPASSE - v;
+                label << "lose-material-impasse ";
+            }
+        }
+        else {
+            if(v > 0) {
+                ply = VALUE_SHARP_EQUAL_IMPASSE - v;
+                label << "win-equal-impasse ";
+            }
+            else {
+                ply = -VALUE_SHARP_EQUAL_IMPASSE - v;
+                label << "lose-equal-impasse ";
+            }
+        }
 
-  if (CurrentProtocol == XBOARD)
+        if(CurrentProtocol == XBOARD && ply > 0)
+            ss << (ply + XBOARD_VALUE_MATE + 1) / 2;
+        else if(CurrentProtocol == XBOARD && ply < 0)
+            ss << (ply - XBOARD_VALUE_MATE - 1) / 2;
+        else if(CurrentProtocol == USI)
+            ss << label.str() << ply;
+        else if(ply > 0)
+            ss << label.str() << (ply + 1) / 2;
+        else
+            ss << label.str() << (ply - 1) / 2;
+    }
+    else {
+        // Centi-pawn
+        if(CurrentProtocol == XBOARD)
+            ss << v * 100 / PawnValueEg;
+        else if(CurrentProtocol == UCCI)
+            ss << "cp " << v * 100 / PawnValueEg;
+        else
+            ss << v * 100 / PawnValueEg;
+    }
+  } 
+  else if (CurrentProtocol == XBOARD)
   {
       if (abs(v) < VALUE_MATE_IN_MAX_PLY)
           ss << v * 100 / PawnValueEg;
