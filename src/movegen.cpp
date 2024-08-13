@@ -474,16 +474,12 @@ namespace {
                     moveList = make_move_and_gating<CASTLING>(pos, moveList, Us,ksq, pos.castling_rook_square(cr));
     }
 
-    // Check for a winning king-take
+    // Make sure winning king-take moves are always included 
+    //  (sometimes they are removed by normal chess constraints; e.g., we need to make sure we can move our pinned rook to take their king)
     if(pos.lose_when_kings_gone() && pos.can_move_into_check() && pos.count<KING>(~Us) > 0) {
         Square targetKing = pos.square<KING>(~Us);
         Bitboard checkersOnThemBB = pos.attackers_to(targetKing, Us);
 
-// TODO: remove
-// if(checkersOnThemBB) {
-// std::cout << pos << std::endl;
-// std::cout << "targetKing: " << UCI::square(pos, targetKing) << std::endl;
-// std::cout << std::endl << "checkersOnThemBB" << std::endl << Bitboards::pretty(checkersOnThemBB);
         while (checkersOnThemBB) {
             moveList = make_move_and_gating<NORMAL>(pos, moveList, Us, pop_lsb(checkersOnThemBB), targetKing);
         }

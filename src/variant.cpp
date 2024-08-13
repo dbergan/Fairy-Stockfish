@@ -700,9 +700,12 @@ namespace {
         v->promotionPieceTypes[BLACK] = piece_set(QUEEN);
         v->stalemateValue = -VALUE_SHARP_STALEMATE;
         v->materialCounting = CHESS_SHARP;
+        v->nMoveRule = 0;       // The rule is 50 in Chess♯, but I'm turning this off for Stockfish, so it 
+                                // doesn't "see" an impasse-win, and play differently because of it
+                                // e.g., fen 8/8/8/3p1b2/3B4/Bk1b4/5K2/8 b - - 98 200
         // v->nFoldRule = 50;
 
-        v->nnueAlias = ""; // TODO: does "nn-" work?
+        v->nnueAlias = ""; // TODO: Research nn options; does "nn-" work?
         return v;
     }
     // Chess𝄪

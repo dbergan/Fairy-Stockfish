@@ -591,47 +591,25 @@ void Position::set_check_info(StateInfo* si) const {
   }
 }
 
-/// Position::all_moves_peril() is a test for stalemate when moving into check is legal
+/// Position::all_moves_peril() is a test for stalemate when moving into check is legal and losing your king is a loss
 bool Position::all_moves_peril() const {
-// TODO: remove
-// std::cout << *this << std::endl;
-// std::cout << "can_move_into_check(): " << (can_move_into_check() ? "true" : "false") << std::endl;
-// std::cout << std::endl << "checkers()" << std::endl << Bitboards::pretty(checkers());
-// printf("count(sideToMove, KING): %d\n\n", count(sideToMove, KING));
-    if (!can_move_into_check() || checkers() || !count(sideToMove, KING)) return false;
+    if (!can_move_into_check() || !lose_when_kings_gone() || checkers() || !count(sideToMove, KING)) return false;
+
+    Square oppKing = square<KING>(~sideToMove);
+
     for (auto& m : MoveList<LEGAL>(*this)) {
-// TODO: remove
-// std::cout << *this << std::endl;
-// std::cout << "square<KING>(sideToMove): " << UCI::square(*this, square<KING>(sideToMove)) << std::endl;
-// std::cout << "to_sq(m): " << UCI::square(*this, to_sq(m)) << std::endl;
-// std::cout << "from_sq(m): " << UCI::square(*this, from_sq(m)) << std::endl;
-// std::cout << std::endl << "attackers_to(to_sq(m), ~sideToMove))" << std::endl << Bitboards::pretty(attackers_to(to_sq(m), ~sideToMove));
-        if(type_of(m) == DROP) return false;
-        else if(square<KING>(sideToMove) == from_sq(m)) {
+        if(to_sq(m) == oppKing) return false;               // Not stalemate if we can capture their king
+        else if(type_of(m) == DROP) return false;           // Not stalemate if we can drop a piece
+        else if(square<KING>(sideToMove) == from_sq(m)) {   // Not stalemate if we can safely move our king
             if(!attackers_to(to_sq(m), ~sideToMove))
                 return false;
         }
-        else {
+        else {                                              // Not stalemate if we can move a piece that doesn't endanger our king
             Bitboard occupied = (pieces() ^ from_sq(m)) | to_sq(m);
-// TODO: remove
-// std::cout << std::endl << "pieces()" << std::endl << Bitboards::pretty(pieces());
-// std::cout << "from_sq(m): " << UCI::square(*this, from_sq(m)) << std::endl;
-// std::cout << "to_sq(m): " << UCI::square(*this, to_sq(m)) << std::endl;
-// std::cout << std::endl << "pieces() ^ from_sq(m)" << std::endl << Bitboards::pretty(pieces() ^ from_sq(m));
-// std::cout << std::endl << "(pieces() ^ from_sq(m)) | to_sq(m)" << std::endl << Bitboards::pretty((pieces() ^ from_sq(m)) | to_sq(m));
-// std::cout << std::endl << "occupied" << std::endl << Bitboards::pretty(occupied);
-// std::cout << std::endl << "attackers_to(square<KING>(sideToMove), occupied, ~sideToMove)" << std::endl << Bitboards::pretty(attackers_to(square<KING>(sideToMove), occupied, ~sideToMove));
-
             if(!attackers_to(square<KING>(sideToMove), occupied, ~sideToMove))
                 return false;
         }
     }
-// TODO: remove
-// std::cout << *this << std::endl;
-// std::cout << "can_move_into_check(): " << (can_move_into_check() ? "true" : "false") << std::endl;
-// std::cout << std::endl << "checkers()" << std::endl << Bitboards::pretty(checkers());
-// printf("count(sideToMove, KING): %d\n\n", count(sideToMove, KING));
-
     return true;
 }
 
@@ -1348,7 +1326,7 @@ bool Position::pseudo_legal(const Move m) const {
 
   // Use a slower but simpler function for uncommon cases
   // yet we skip the legality check of MoveList<LEGAL>().
-  if (type_of(m) != NORMAL || is_gating(m))
+  if (!can_move_into_check() && (type_of(m) != NORMAL || is_gating(m)))
       return checkers() ? MoveList<    EVASIONS>(*this).contains(m)
                         : MoveList<NON_EVASIONS>(*this).contains(m);
 
@@ -1425,7 +1403,7 @@ bool Position::pseudo_legal(const Move m) const {
   // Evasions generator already takes care to avoid some kind of illegal moves
   // and legal() relies on this. We therefore have to take care that the same
   // kind of moves are filtered out here.
-  if (checkers() && !(checkers() & non_sliding_riders()))
+  if (!can_move_into_check() && checkers() && !(checkers() & non_sliding_riders()))
   {
       if (type_of(pc) != KING)
       {
@@ -1452,7 +1430,6 @@ bool Position::pseudo_legal(const Move m) const {
 /// Position::gives_check() tests whether a pseudo-legal move gives a check
 
 bool Position::gives_check(Move m) const {
-  
   assert(is_ok(m));
   assert(color_of(moved_piece(m)) == sideToMove);
 
@@ -2754,9 +2731,7 @@ bool Position::is_optional_game_end(Value& result, int ply, int countStarted) co
 
   // King-taking (stalemate)
   if(all_moves_peril()) {
-// TODO: remove
-//std::cout << std::endl << std::endl<< "*****STALEMATE*****" << *this << std::endl;
-      result = stalemate_in(ply);
+      result = stalemated_in(ply);
       return true;
   }
 
@@ -2769,6 +2744,17 @@ bool Position::is_optional_game_end(Value& result, int ply, int countStarted) co
 /// It does not detect stalemates.
 
 bool Position::is_immediate_game_end(Value& result, int ply) const {
+  // Win by taking the king
+  if(lose_when_kings_gone()) {
+    if(count_with_hand(~sideToMove, KING) <= 0) {
+        result = mate_in(ply);
+        return true;
+    }
+    else if(count_with_hand(sideToMove, KING) <= 0) {
+        result = mated_in(ply);
+        return true;
+    }
+  }
 
   // Extinction
   // Extinction does not apply for pseudo-royal pieces, because they can not be captured
@@ -2974,22 +2960,6 @@ bool Position::is_immediate_game_end(Value& result, int ply) const {
           result = mate_in(ply);
           return true;
       }
-  }
-
-  // King-taking
-  if(lose_when_kings_gone()) {
-    if(!count_with_hand(~sideToMove, KING)) {
-    // TODO: remove
-    //std::cout << std::endl<< std::endl << "*****KING-TAKE*****" << *this << std::endl;
-        result = mate_in(ply);
-        return true;
-    }
-    else if(!count_with_hand(sideToMove, KING)) {
-    // TODO: remove
-    //std::cout << std::endl<< std::endl << "*****KING-TAKE*****" << *this << std::endl;
-        result = mated_in(ply);
-        return true;
-    }
   }
 
   return false;

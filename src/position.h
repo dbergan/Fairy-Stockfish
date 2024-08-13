@@ -1541,10 +1541,6 @@ inline Value Position::material_counting_result(int ply) const {
                      + weight_count(BISHOP, 3)
                      + weight_count(KNIGHT, 3)
                      + weight_count(PAWN, 1);
-// TODO: remove
-// std::cout << *this << std::endl;
-// std::cout << "materialCount: " << materialCount << std::endl;
-// std::cout << "side_to_move(): " << (side_to_move() == WHITE ? "WHITE" : "BLACK") << std::endl;
       if((materialCount > 0 && side_to_move() == WHITE) || (materialCount < 0 && side_to_move() == BLACK))
           result = win_material_impasse_in(ply);
       else if((materialCount > 0 && side_to_move() == BLACK) || (materialCount < 0 && side_to_move() == WHITE))
@@ -1603,7 +1599,7 @@ inline void Position::undrop_piece(Piece pc_hand, Square s) {
 }
 
 inline bool Position::can_drop(Color c, PieceType pt) const {
-    return variant()->freeDrops || count_in_hand(c, pt) > 0;
+  return variant()->freeDrops || count_in_hand(c, pt) > 0;
 }
 
 } // namespace Stockfish

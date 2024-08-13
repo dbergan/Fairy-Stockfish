@@ -1480,18 +1480,6 @@ moves_loop: // When in check, search starts from here
     // must be a mate or a stalemate. If we are in a singular extension search then
     // return a fail low score.
 
-// TODO: remove
-// if((moveCount || !ss->inCheck || excludedMove || !MoveList<LEGAL>(pos).size()) == false) {
-// std::cout << pos << std::endl;
-// std::cout << "Move count: " << moveCount << std::endl;
-// string inCheckString = !ss->inCheck ? "true" : "false";
-// std::cout << "!In check: " << inCheckString << std::endl;
-// string excludedMoveString = excludedMove ? "true" : "false";
-// std::cout << "Excluded move: " << excludedMoveString << std::endl;
-// string moveListString = !MoveList<LEGAL>(pos).size() ? "true" : "false";
-// std::cout << "Move list (T/F): " << moveListString << std::endl;
-// std::cout << "Move list size: " << MoveList<LEGAL>(pos).size() << std::endl;
-// }
     assert(moveCount || !ss->inCheck || excludedMove || !MoveList<LEGAL>(pos).size() || pos.can_move_into_check());
 
 
@@ -1574,12 +1562,6 @@ moves_loop: // When in check, search starts from here
 
     Value gameResult;
     if (pos.is_game_end(gameResult, ss->ply)) {
-// TODO: remove
-// std::cout << pos << std::endl;
-// string is_game_end = pos.is_game_end(gameResult, ss->ply) ? "true" : "false";
-// std::cout << "Game is_game_end: " << is_game_end << std::endl;
-// std::cout << "Game result: " << gameResult << std::endl;
-// int dbfoo = 1;
             return gameResult;
     }
 
@@ -1763,11 +1745,6 @@ moves_loop: // When in check, search starts from here
     // and no legal moves were found, it is checkmate.
     if (ss->inCheck && bestValue == -VALUE_INFINITE)
     {
-// TODO: remove
-// if((!MoveList<LEGAL>(pos).size()) == false) {
-// std::cout << pos << std::endl;
-// std::cout << MoveList<LEGAL>(pos).size() << std::endl;
-// }
         assert(!MoveList<LEGAL>(pos).size() || pos.can_move_into_check());
 
         return pos.checkmate_value(ss->ply); // Plies to mate from the root
